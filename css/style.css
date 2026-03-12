@@ -280,7 +280,27 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
 #upgrades-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
+}
+
+.upgrade-cat-header {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  padding: 6px 4px 4px;
+  border-bottom: 1px solid;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  opacity: 0.9;
+}
+
+.upgrade-cat-header:first-child { margin-top: 0; }
+
+.attacker-dots {
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  margin-top: 3px;
+  display: block;
 }
 
 .upgrade-btn {
@@ -328,6 +348,12 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
   background: rgba(34,197,94,0.05);
   opacity: 0.7;
   cursor: default;
+}
+
+.upgrade-btn.locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
 }
 
 .upgrade-icon {

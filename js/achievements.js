@@ -54,7 +54,7 @@ const ACHIEVEMENT_DEFS = [
     name: 'Auto Pilot',
     icon: '🤖',
     desc: 'Unlock Auto Attack',
-    check: (g) => g.upgrades.getLevel('autoAttack') >= 1
+    check: (g) => g.upgrades.getLevel('phantom') >= 1
   },
   {
     id: 'speedDemon',

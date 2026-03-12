@@ -50,8 +50,8 @@ class Player {
   }
 
   gainXP(amount) {
-    const mult = window.game ? game.upgrades.getBonus('xpMult') : 1;
-    this.xp += Math.floor(amount * mult);
+    // XP multiplier applied by caller (game.js) before passing amount in
+    this.xp += Math.floor(amount);
     let leveledUp = false;
     while (this.xp >= this.xpToNext && this.level < CONFIG.MAX_LEVEL) {
       this.xp -= this.xpToNext;

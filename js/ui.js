@@ -1,4 +1,10 @@
 // === UI MANAGER ===
+const UPGRADE_CATEGORIES = [
+  { id: 'damage',  label: '⚔️ CLICK POWER',    color: '#ef4444' },
+  { id: 'auto',    label: '🤖 AUTO ATTACKERS',  color: '#06b6d4' },
+  { id: 'economy', label: '💰 ECONOMY',         color: '#fbbf24' },
+];
+
 class UI {
   constructor() {
     this.els = {};
@@ -6,7 +12,8 @@ class UI {
     this._achToastTimer = 0;
     this._achToastQueue = [];
     this._logEntries = [];
-    this.maxLogEntries = 50;
+    this.maxLogEntries = 60;
+    this._upgradesBuilt = false;
   }
 
   _cacheElements() {
@@ -39,12 +46,8 @@ class UI {
     this.setText('gold-display', formatNum(game.gold));
     this.setText('stars-display', game.player.stars);
     this.setText('zone-display', game.zone);
-
-    if (game.currentEnemy?.isBoss) {
-      this.els['boss-indicator']?.classList.remove('hidden');
-    } else {
-      this.els['boss-indicator']?.classList.add('hidden');
-    }
+    const bossEl = this.els['boss-indicator'];
+    if (bossEl) bossEl.classList.toggle('hidden', !game.currentEnemy?.isBoss);
   }
 
   updatePlayer(game) {
@@ -52,13 +55,12 @@ class UI {
     this.setText('player-level', p.level);
     this.setWidth('xp-bar', p.getXPPercent());
     this.setText('xp-text', `${formatNum(p.xp)} / ${formatNum(p.xpToNext)} XP`);
-
     this.setText('stat-attack', formatNum(Math.floor(p.attack)));
-    this.setText('stat-crit', `${formatFloat(p.critChance, 1)}%`);
+    this.setText('stat-crit', `${formatFloat(p.critChance, 0)}%`);
     this.setText('stat-critx', `${formatFloat(p.critMult, 2)}×`);
 
-    const autoDps = game.upgrades.getBonus('autoAttack') * p.attack;
-    this.setText('stat-dps', formatNum(Math.floor(autoDps)));
+    const autoDps = game.attackerManager.getTotalDPS(p);
+    this.setText('stat-dps', formatNum(autoDps));
     this.setText('stat-goldmult', `${formatFloat(p.goldMult, 2)}×`);
     this.setText('stat-clicks', formatNum(p.totalClicks));
   }
@@ -66,45 +68,34 @@ class UI {
   updateEnemy(game) {
     const e = game.currentEnemy;
     if (!e) return;
-
     this.setText('enemy-name', e.name);
     const pct = e.hpPercent * 100;
     this.setWidth('hp-bar', pct);
     this.setText('hp-text', `${formatNum(e.hp)} / ${formatNum(e.maxHp)}`);
 
-    // Color HP bar by health
     const bar = this.els['hp-bar'];
     if (bar) {
-      if (pct < 25) bar.style.background = 'linear-gradient(90deg, #7f1d1d, #dc2626)';
+      if (pct < 25)      bar.style.background = 'linear-gradient(90deg, #7f1d1d, #dc2626)';
       else if (pct < 50) bar.style.background = 'linear-gradient(90deg, #b45309, #f59e0b)';
-      else bar.style.background = 'linear-gradient(90deg, #dc2626, #ef4444, #f87171)';
+      else               bar.style.background = 'linear-gradient(90deg, #dc2626, #ef4444, #f87171)';
     }
   }
 
   updateZone(game) {
-    const kills = game.killsInZone;
-    const total = CONFIG.ENEMIES_PER_ZONE;
-    const pct = (kills / total) * 100;
-
+    const pct = (game.killsInZone / CONFIG.ENEMIES_PER_ZONE) * 100;
     this.setText('zone-num', game.zone);
     this.setText('zone-next', game.zone + 1);
     this.setWidth('zone-bar', pct);
-    this.setText('zone-bar-text', `${kills} / ${total}`);
+    this.setText('zone-bar-text', `${game.killsInZone} / ${CONFIG.ENEMIES_PER_ZONE}`);
   }
 
   updatePrestige(game) {
     const canPrestige = game.zone >= CONFIG.PRESTIGE_ZONE;
-    const btn = this.els['prestige-btn'];
-    const info = this.els['prestige-info'];
-
+    this.els['prestige-btn']?.classList.toggle('hidden', !canPrestige);
+    this.els['prestige-info']?.classList.toggle('hidden', canPrestige);
     if (canPrestige) {
-      btn?.classList.remove('hidden');
-      info?.classList.add('hidden');
       const stars = game.calcPrestigeStars();
       this.setText('prestige-reward-text', `Gain ${stars} Star${stars !== 1 ? 's' : ''} (have ${game.player.stars})`);
-    } else {
-      btn?.classList.add('hidden');
-      info?.classList.remove('hidden');
     }
   }
 
@@ -114,27 +105,70 @@ class UI {
 
     const visible = game.upgrades.getVisibleUpgrades(game.player.prestiges);
 
-    // Build or update upgrade buttons
-    visible.forEach(def => {
-      const level = game.upgrades.getLevel(def.id);
-      const maxed = level >= def.maxLevel;
-      const cost = game.upgrades.getCost(def.id);
-      const affordable = !maxed && game.gold >= cost;
+    // Build structure once (or after prestige reset)
+    if (!this._upgradesBuilt || container.children.length === 0) {
+      container.innerHTML = '';
+      let currentCat = null;
 
-      let btn = document.getElementById(`upgrade-${def.id}`);
-      if (!btn) {
-        btn = document.createElement('button');
+      for (const def of visible) {
+        if (def.category !== currentCat) {
+          currentCat = def.category;
+          const catDef = UPGRADE_CATEGORIES.find(c => c.id === currentCat);
+          if (catDef) {
+            const header = document.createElement('div');
+            header.className = 'upgrade-cat-header';
+            header.style.color = catDef.color;
+            header.style.borderColor = catDef.color + '44';
+            header.textContent = catDef.label;
+            container.appendChild(header);
+          }
+        }
+
+        const btn = document.createElement('button');
         btn.id = `upgrade-${def.id}`;
         btn.className = 'upgrade-btn';
+        if (def.isAuto) btn.dataset.autoColor = def.color || '#06b6d4';
         btn.addEventListener('click', () => game.buyUpgrade(def.id));
         container.appendChild(btn);
       }
+      this._upgradesBuilt = true;
+    }
 
-      // Update classes
-      btn.className = 'upgrade-btn' + (maxed ? ' maxed' : '') + (affordable && !maxed ? ' affordable' : '');
-      btn.disabled = maxed || !affordable;
+    // Update each button's content and state
+    for (const def of visible) {
+      const btn = document.getElementById(`upgrade-${def.id}`);
+      if (!btn) continue;
 
-      const nextDesc = !maxed ? def.getDesc(level) : '(MAXED)';
+      const level   = game.upgrades.getLevel(def.id);
+      const maxed   = level >= def.maxLevel;
+      const locked  = game.upgrades.isLocked(def.id, game);
+      const cost    = game.upgrades.getCost(def.id);
+      const afford  = !maxed && !locked && game.gold >= cost;
+
+      btn.className = 'upgrade-btn'
+        + (maxed  ? ' maxed'      : '')
+        + (locked ? ' locked'     : '')
+        + (afford ? ' affordable' : '');
+      btn.disabled = maxed || locked;
+
+      let extraHTML = '';
+      if (def.isAuto && !locked) {
+        const count   = getAttackerCount(level);
+        const color   = def.color || '#06b6d4';
+        const dots    = [1, 2, 3, 4].map(n => `<span style="color:${n <= count ? color : '#334155'}">${n <= count ? '●' : '○'}</span>`).join(' ');
+        extraHTML = `<div class="attacker-dots">${dots}</div>`;
+      }
+
+      let descHTML = '';
+      if (locked && def.unlockReq) {
+        const reqDef = UPGRADE_DEFS.find(u => u.id === def.unlockReq.id);
+        descHTML = `🔒 Need ${reqDef?.name || def.unlockReq.id} Lv ${def.unlockReq.level}`;
+      } else if (maxed) {
+        descHTML = '<span style="color:#22c55e">MAXED OUT</span>';
+      } else {
+        descHTML = def.getNextBonus(level);
+      }
+
       btn.innerHTML = `
         <span class="upgrade-icon">${def.icon}</span>
         <span class="upgrade-info">
@@ -142,11 +176,12 @@ class UI {
             ${def.name}
             <span class="upgrade-level">${level}/${def.maxLevel}</span>
           </span>
-          <span class="upgrade-desc">${nextDesc}</span>
+          <span class="upgrade-desc">${descHTML}</span>
+          ${extraHTML}
         </span>
-        <span class="upgrade-cost">${maxed ? '✓' : `💰${formatNum(cost)}`}</span>
+        <span class="upgrade-cost">${maxed ? '✓' : locked ? '—' : `💰${formatNum(cost)}`}</span>
       `;
-    });
+    }
   }
 
   updateAchievements(game) {
@@ -154,26 +189,23 @@ class UI {
     if (!container) return;
 
     if (container.children.length === ACHIEVEMENT_DEFS.length) {
-      // Just update classes
       ACHIEVEMENT_DEFS.forEach(def => {
         const el = document.getElementById(`ach-${def.id}`);
-        if (el) {
-          const unlocked = game.achievements.isUnlocked(def.id);
-          el.className = 'achievement-item' + (unlocked ? ' unlocked' : '');
-          const icon = el.querySelector('.achievement-icon');
-          if (icon) icon.className = 'achievement-icon' + (unlocked ? '' : ' ach-locked');
-        }
+        if (!el) return;
+        const unlocked = game.achievements.isUnlocked(def.id);
+        el.className = `achievement-item${unlocked ? ' unlocked' : ''}`;
+        const icon = el.querySelector('.achievement-icon');
+        if (icon) icon.className = `achievement-icon${unlocked ? '' : ' ach-locked'}`;
       });
       return;
     }
 
-    // Build achievement list
     container.innerHTML = '';
     ACHIEVEMENT_DEFS.forEach(def => {
       const unlocked = game.achievements.isUnlocked(def.id);
       const el = document.createElement('div');
       el.id = `ach-${def.id}`;
-      el.className = 'achievement-item' + (unlocked ? ' unlocked' : '');
+      el.className = `achievement-item${unlocked ? ' unlocked' : ''}`;
       el.innerHTML = `
         <span class="achievement-icon${unlocked ? '' : ' ach-locked'}">${def.icon}</span>
         <span class="achievement-info">
@@ -185,91 +217,65 @@ class UI {
     });
   }
 
+  // ── Toast / Notifications ───────────────────────────────────────────────────
+
   showAchievementToast(def) {
     this._achToastQueue.push(def);
     if (this._achToastTimer <= 0) this._showNextToast();
   }
 
   _showNextToast() {
-    if (this._achToastQueue.length === 0) return;
+    if (!this._achToastQueue.length) return;
     const def = this._achToastQueue.shift();
     const toast = this.els['achievement-toast'];
-    const name = this.els['toast-name'];
+    const name  = this.els['toast-name'];
     if (!toast || !name) return;
-
     name.textContent = `${def.icon} ${def.name}`;
     toast.classList.remove('hidden');
     toast.style.animation = 'none';
-    toast.offsetHeight; // reflow
+    void toast.offsetHeight;
     toast.style.animation = '';
-
-    this._achToastTimer = 3000;
+    this._achToastTimer = 3200;
   }
 
   tickToast(dt) {
-    if (this._achToastTimer > 0) {
-      this._achToastTimer -= dt;
-      if (this._achToastTimer <= 0) {
-        const toast = this.els['achievement-toast'];
-        if (toast) {
-          toast.style.animation = 'toastOut 0.4s ease forwards';
-          setTimeout(() => {
-            toast.classList.add('hidden');
-            toast.style.animation = '';
-            if (this._achToastQueue.length > 0) {
-              setTimeout(() => this._showNextToast(), 300);
-            }
-          }, 400);
-        }
+    if (this._achToastTimer <= 0) return;
+    this._achToastTimer -= dt;
+    if (this._achToastTimer <= 0) {
+      const toast = this.els['achievement-toast'];
+      if (toast) {
+        toast.style.animation = 'toastOut 0.4s ease forwards';
+        setTimeout(() => {
+          toast.classList.add('hidden');
+          toast.style.animation = '';
+          if (this._achToastQueue.length) setTimeout(() => this._showNextToast(), 300);
+        }, 400);
       }
     }
   }
 
-  showLevelUp(level) {
-    const toast = this.els['levelup-toast'];
-    const num = this.els['levelup-num'];
-    if (!toast || !num) return;
-
-    num.textContent = level;
-    toast.classList.remove('hidden');
-    toast.className = 'levelup-toast animating';
-    setTimeout(() => {
-      toast.classList.add('hidden');
-      toast.className = 'levelup-toast hidden';
-    }, 1200);
-  }
+  // ── Combat Log ──────────────────────────────────────────────────────────────
 
   addLog(msg, type = '') {
     const container = this.els['combat-log'];
     if (!container) return;
-
     const el = document.createElement('div');
     el.className = `log-entry${type ? ' log-' + type : ''}`;
     el.textContent = msg;
     container.insertBefore(el, container.firstChild);
-
     this._logEntries.push(el);
-    if (this._logEntries.length > this.maxLogEntries) {
-      const old = this._logEntries.shift();
-      old.remove();
-    }
+    if (this._logEntries.length > this.maxLogEntries) this._logEntries.shift()?.remove();
   }
 
   screenShake() {
     const canvas = document.getElementById('game-canvas');
     if (!canvas) return;
     canvas.classList.add('screen-shake');
-    setTimeout(() => canvas.classList.remove('screen-shake'), 250);
+    setTimeout(() => canvas.classList.remove('screen-shake'), 280);
   }
 
-  // Helpers
-  setText(id, val) {
-    const el = this.els[id];
-    if (el) el.textContent = val;
-  }
+  // ── Helpers ─────────────────────────────────────────────────────────────────
 
-  setWidth(id, pct) {
-    const el = this.els[id];
-    if (el) el.style.width = clamp(pct, 0, 100) + '%';
-  }
+  setText(id, val)  { const el = this.els[id]; if (el) el.textContent = val; }
+  setWidth(id, pct) { const el = this.els[id]; if (el) el.style.width = clamp(pct, 0, 100) + '%'; }
 }

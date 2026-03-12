@@ -1,229 +1,199 @@
-// === UPGRADE SYSTEM ===
+// === UPGRADE SYSTEM — REDESIGNED ===
+
+// How many visual attackers spawn per upgrade level
+function getAttackerCount(level) {
+  if (level <= 0) return 0;
+  if (level <= 4)  return 1;
+  if (level <= 9)  return 2;
+  if (level <= 14) return 3;
+  return 4;
+}
+
 const UPGRADE_DEFS = [
+  // ── CLICK POWER ──────────────────────────────────────────────────────────
   {
-    id: 'sharpBlade',
-    name: 'Sharp Blade',
+    id: 'clickDamage',
+    category: 'damage',
+    name: 'Click Power',
     icon: '⚔️',
-    desc: '+{val} flat attack damage',
-    maxLevel: 50,
-    baseCost: 15,
-    costScale: 1.45,
-    baseVal: 2,
-    valScale: 1.15,
-    apply(player, level) {
-      player._baseAttack += this.baseVal * Math.pow(this.valScale, level - 1);
+    maxLevel: 100,
+    baseCost: 10,
+    costScale: 1.28,
+    getNextBonus(level) {
+      const add = Math.floor(2 * Math.pow(1.08, level));
+      return `+${add} attack damage`;
     },
-    category: 'attack',
-    getDesc(level) { return `+${formatFloat(this.baseVal * Math.pow(this.valScale, level))} flat attack`; }
+    apply(player, level) {
+      player._baseAttack += Math.floor(2 * Math.pow(1.08, level - 1));
+    },
   },
   {
-    id: 'battleRage',
-    name: 'Battle Rage',
-    icon: '🔥',
-    desc: '+{val}% attack multiplier',
-    maxLevel: 30,
-    baseCost: 50,
-    costScale: 1.6,
-    baseVal: 15,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseAttack *= 1 + (this.baseVal / 100);
-    },
-    category: 'attack',
-    getDesc(level) { return `+${this.baseVal}% attack per level`; }
-  },
-  {
-    id: 'criticalEye',
-    name: 'Critical Eye',
-    icon: '👁️',
-    desc: '+{val}% crit chance',
-    maxLevel: 20,
-    baseCost: 40,
-    costScale: 1.55,
-    baseVal: 3,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseCritChance += this.baseVal;
-    },
-    category: 'crit',
-    getDesc(level) { return `+${this.baseVal}% crit chance per level`; }
-  },
-  {
-    id: 'killingBlow',
-    name: 'Killing Blow',
+    id: 'critStrike',
+    category: 'damage',
+    name: 'Critical Strike',
     icon: '💥',
-    desc: '+{val}× crit damage',
-    maxLevel: 20,
-    baseCost: 60,
-    costScale: 1.7,
-    baseVal: 0.25,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseCritMult += this.baseVal;
-    },
-    category: 'crit',
-    getDesc(level) { return `+${this.baseVal}× crit multiplier per level`; }
-  },
-  {
-    id: 'autoAttack',
-    name: 'Auto Attack',
-    icon: '⚡',
-    desc: 'Auto-attacks every second',
     maxLevel: 40,
-    baseCost: 100,
-    costScale: 1.5,
-    baseVal: 0.5,
-    valScale: 1.2,
-    apply(player, level) {/* handled by game loop */},
-    category: 'auto',
-    getDesc(level) { return `+${formatFloat(this.baseVal * Math.pow(this.valScale, level))}× auto DPS`; }
+    baseCost: 45,
+    costScale: 1.42,
+    getNextBonus(level) {
+      const chance = Math.min(5 + (level + 1) * 3, 75);
+      const mult = formatFloat(2.0 + (level + 1) * 0.18, 2);
+      return `${chance}% crit chance · ${mult}× crit dmg`;
+    },
+    apply(player, level) {
+      // Set absolutely — always correct regardless of order
+      player._baseCritChance = Math.min(5 + level * 3, 75);
+      player._baseCritMult   = 2.0 + level * 0.18;
+    },
   },
   {
-    id: 'multiStrike',
-    name: 'Multi Strike',
-    icon: '🌀',
-    desc: '+{val}% chance for double hit',
+    id: 'powerSurge',
+    category: 'damage',
+    name: 'Power Surge',
+    icon: '⚡',
+    maxLevel: 25,
+    baseCost: 250,
+    costScale: 1.6,
+    getNextBonus(level) {
+      return `×1.3 all damage (total: ×${formatFloat(Math.pow(1.3, level + 1), 1)})`;
+    },
+    apply(player, level) {
+      player._baseAttack *= 1.3;
+    },
+  },
+
+  // ── AUTO ATTACKERS ───────────────────────────────────────────────────────
+  {
+    id: 'phantom',
+    category: 'auto',
+    name: 'Phantom',
+    icon: '👻',
+    color: '#06b6d4',
     maxLevel: 20,
     baseCost: 80,
-    costScale: 1.6,
-    baseVal: 5,
-    valScale: 1.0,
-    apply(player, level) {/* handled in combat */},
-    category: 'attack',
-    getDesc(level) { return `+${this.baseVal}% double hit chance`; }
-  },
-  {
-    id: 'goldRush',
-    name: 'Gold Rush',
-    icon: '💰',
-    desc: '+{val}% gold from kills',
-    maxLevel: 30,
-    baseCost: 35,
-    costScale: 1.5,
-    baseVal: 20,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseGoldMult *= 1 + (this.baseVal / 100);
+    costScale: 1.45,
+    isAuto: true,
+    getNextBonus(level) {
+      const cur = getAttackerCount(level);
+      const next = getAttackerCount(level + 1);
+      if (next > cur) return `⬆ ${next} Phantoms orbiting!`;
+      return `Faster fire rate · more damage`;
     },
-    category: 'gold',
-    getDesc(level) { return `+${this.baseVal}% gold per level`; }
+    apply(player, level) {},
   },
   {
-    id: 'treasureHunter',
-    name: 'Treasure Hunter',
-    icon: '🗺️',
-    desc: '+{val}% bonus from bosses',
-    maxLevel: 20,
-    baseCost: 120,
-    costScale: 1.6,
-    baseVal: 30,
-    valScale: 1.0,
-    apply(player, level) {/* handled in boss kill */},
-    category: 'gold',
-    getDesc(level) { return `+${this.baseVal}% boss gold`; }
-  },
-  {
-    id: 'soulHarvest',
-    name: 'Soul Harvest',
-    icon: '✨',
-    desc: '+{val}% XP gain',
-    maxLevel: 20,
-    baseCost: 45,
-    costScale: 1.5,
-    baseVal: 25,
-    valScale: 1.0,
-    apply(player, level) {/* handled in xp gain */},
-    category: 'xp',
-    getDesc(level) { return `+${this.baseVal}% XP gain per level`; }
-  },
-  {
-    id: 'battleCry',
-    name: 'Battle Cry',
-    icon: '📢',
-    desc: '+{val}% attack for 10s (on kill)',
-    maxLevel: 15,
-    baseCost: 200,
-    costScale: 1.8,
-    baseVal: 50,
-    valScale: 1.1,
-    apply(player, level) {/* handled in kill */},
-    category: 'attack',
-    getDesc(level) { return `+${Math.floor(this.baseVal * Math.pow(this.valScale, level))}% temp boost`; }
-  },
-  {
-    id: 'swiftStrike',
-    name: 'Swift Strike',
-    icon: '⏩',
-    desc: '+{val}× damage multiplier',
-    maxLevel: 25,
-    baseCost: 150,
-    costScale: 1.65,
-    baseVal: 0.1,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseAttack *= 1 + this.baseVal;
-    },
-    category: 'attack',
-    getDesc(level) { return `+${this.baseVal * 100}% total damage`; }
-  },
-  {
-    id: 'cosmicPower',
-    name: 'Cosmic Power',
-    icon: '🌌',
-    desc: 'Massive power multiplier',
-    maxLevel: 10,
-    baseCost: 1000,
-    costScale: 3.0,
-    baseVal: 2,
-    valScale: 1.0,
-    apply(player, level) {
-      player._baseAttack *= this.baseVal;
-    },
-    category: 'attack',
-    getDesc(level) { return `×${this.baseVal} total attack`; }
-  },
-  {
-    id: 'goldMagnet',
-    name: 'Gold Magnet',
-    icon: '🧲',
-    desc: 'Flat gold per kill bonus',
-    maxLevel: 30,
-    baseCost: 200,
-    costScale: 1.55,
-    baseVal: 10,
-    valScale: 1.3,
-    apply(player, level) {/* handled in kill */},
-    category: 'gold',
-    getDesc(level) { return `+${Math.floor(this.baseVal * Math.pow(this.valScale, level))} flat gold`; }
-  },
-  {
-    id: 'berserker',
-    name: 'Berserker',
-    icon: '💢',
-    desc: 'Damage scales with kills',
+    id: 'specter',
+    category: 'auto',
+    name: 'Specter',
+    icon: '🔮',
+    color: '#a855f7',
     maxLevel: 20,
     baseCost: 500,
+    costScale: 1.55,
+    isAuto: true,
+    unlockReq: { id: 'phantom', level: 3 },
+    getNextBonus(level) {
+      const cur = getAttackerCount(level);
+      const next = getAttackerCount(level + 1);
+      if (next > cur) return `⬆ ${next} Specters orbiting!`;
+      return `Faster fire rate · more damage`;
+    },
+    apply(player, level) {},
+  },
+  {
+    id: 'obliterator',
+    category: 'auto',
+    name: 'Obliterator',
+    icon: '🔥',
+    color: '#ef4444',
+    maxLevel: 20,
+    baseCost: 2500,
+    costScale: 1.65,
+    isAuto: true,
+    unlockReq: { id: 'specter', level: 3 },
+    getNextBonus(level) {
+      const cur = getAttackerCount(level);
+      const next = getAttackerCount(level + 1);
+      if (next > cur) return `⬆ ${next} Obliterators orbiting!`;
+      return `Faster fire rate · more damage`;
+    },
+    apply(player, level) {},
+  },
+  {
+    id: 'annihilator',
+    category: 'auto',
+    name: 'Annihilator',
+    icon: '☄️',
+    color: '#fbbf24',
+    maxLevel: 15,
+    baseCost: 15000,
     costScale: 2.0,
-    baseVal: 0.01,
-    valScale: 1.0,
-    apply(player, level) {/* handled in damage calc */},
-    category: 'attack',
-    getDesc(level) { return `+${this.baseVal * 100}% dmg per 100 kills`; }
+    isAuto: true,
+    unlockReq: { id: 'obliterator', level: 3 },
+    getNextBonus(level) {
+      const cur = getAttackerCount(level);
+      const next = getAttackerCount(level + 1);
+      if (next > cur) return `⬆ ${next} Annihilators orbiting!`;
+      return `Faster fire rate · more damage`;
+    },
+    apply(player, level) {},
+  },
+
+  // ── ECONOMY ──────────────────────────────────────────────────────────────
+  {
+    id: 'goldGreed',
+    category: 'economy',
+    name: 'Gold Greed',
+    icon: '💰',
+    maxLevel: 50,
+    baseCost: 25,
+    costScale: 1.38,
+    getNextBonus(level) {
+      return `+20% gold → ${formatFloat(Math.pow(1.2, level + 1), 2)}× total`;
+    },
+    apply(player, level) {
+      player._baseGoldMult *= 1.2;
+    },
+  },
+  {
+    id: 'soulWisdom',
+    category: 'economy',
+    name: 'Soul Wisdom',
+    icon: '✨',
+    maxLevel: 30,
+    baseCost: 35,
+    costScale: 1.4,
+    getNextBonus(level) {
+      return `+30% XP → ${formatFloat(Math.pow(1.3, level + 1), 2)}× total`;
+    },
+    apply(player, level) {},
+  },
+  {
+    id: 'bossHunter',
+    category: 'economy',
+    name: 'Boss Hunter',
+    icon: '🗡️',
+    maxLevel: 20,
+    baseCost: 150,
+    costScale: 1.5,
+    getNextBonus(level) {
+      return `+35% boss loot → ${formatFloat(Math.pow(1.35, level + 1), 2)}× boss gold`;
+    },
+    apply(player, level) {},
   },
   {
     id: 'prestigeBoost',
-    name: 'Prestige Boost',
+    category: 'economy',
+    name: 'Star Power',
     icon: '⭐',
-    desc: '+{val}% bonus per Star',
+    hidden: true,   // shows only after first prestige
     maxLevel: 10,
-    baseCost: 2000,
+    baseCost: 8000,
     costScale: 3.0,
-    baseVal: 5,
-    valScale: 1.0,
-    hidden: true, // only shows after first prestige
-    apply(player, level) {/* handled in prestige mult */},
-    category: 'prestige',
-    getDesc(level) { return `+${this.baseVal}% per Star`; }
+    getNextBonus(level) {
+      return `+10% damage & gold per Star`;
+    },
+    apply(player, level) {},
   },
 ];
 
@@ -231,13 +201,9 @@ class UpgradeSystem {
   constructor() {
     this.levels = {};
     UPGRADE_DEFS.forEach(u => this.levels[u.id] = 0);
-    this.battleCryTimer = 0;
-    this.battleCryActive = false;
   }
 
-  getLevel(id) {
-    return this.levels[id] || 0;
-  }
+  getLevel(id) { return this.levels[id] || 0; }
 
   getCost(id) {
     const def = UPGRADE_DEFS.find(u => u.id === id);
@@ -247,89 +213,36 @@ class UpgradeSystem {
     return Math.floor(def.baseCost * Math.pow(def.costScale, level));
   }
 
-  canAfford(id, gold) {
-    return gold >= this.getCost(id);
+  isLocked(id, game) {
+    const def = UPGRADE_DEFS.find(u => u.id === id);
+    if (!def || !def.unlockReq) return false;
+    if (def.unlockReq.id && this.getLevel(def.unlockReq.id) < def.unlockReq.level) return true;
+    return false;
   }
 
-  purchase(id, player, gold) {
+  purchase(id, player, gold, game) {
+    if (this.isLocked(id, game)) return { success: false };
     const def = UPGRADE_DEFS.find(u => u.id === id);
     if (!def) return { success: false };
-
     const cost = this.getCost(id);
-    if (gold < cost || this.levels[id] >= def.maxLevel) {
-      return { success: false };
-    }
+    if (gold < cost || this.levels[id] >= def.maxLevel) return { success: false };
 
     this.levels[id]++;
     def.apply(player, this.levels[id]);
-
     return { success: true, cost };
   }
 
-  // Get bonus multipliers for various stats
-  getBonus(type) {
+  // Bonus getters used by game systems
+  getBonus(type, game) {
     switch (type) {
-      case 'autoAttack': {
-        const def = UPGRADE_DEFS.find(u => u.id === 'autoAttack');
-        const level = this.getLevel('autoAttack');
-        if (level === 0) return 0;
-        let dps = 0;
-        for (let i = 1; i <= level; i++) {
-          dps += def.baseVal * Math.pow(def.valScale, i - 1);
-        }
-        return dps;
-      }
-      case 'multiStrike': {
-        return this.getLevel('multiStrike') * 5; // % chance
-      }
-      case 'treasureHunter': {
-        return 1 + this.getLevel('treasureHunter') * 0.3;
-      }
-      case 'xpMult': {
-        return 1 + this.getLevel('soulHarvest') * 0.25;
-      }
-      case 'battleCry': {
-        const def = UPGRADE_DEFS.find(u => u.id === 'battleCry');
-        const level = this.getLevel('battleCry');
-        if (level === 0) return 1;
-        return 1 + (def.baseVal * Math.pow(def.valScale, level - 1)) / 100;
-      }
-      case 'goldMagnet': {
-        const def = UPGRADE_DEFS.find(u => u.id === 'goldMagnet');
-        const level = this.getLevel('goldMagnet');
-        if (level === 0) return 0;
-        return Math.floor(def.baseVal * Math.pow(def.valScale, level - 1));
-      }
-      case 'berserker': {
-        return 1 + (this.getLevel('berserker') * 0.01 * Math.floor(window.game ? game.player.totalKills / 100 : 0));
-      }
-      case 'prestigeBoost': {
-        return 1 + this.getLevel('prestigeBoost') * 0.05 * (window.game ? game.player.stars : 0);
-      }
+      case 'xpMult':
+        return 1 + this.getLevel('soulWisdom') * 0.3;
+      case 'bossGoldMult':
+        return Math.pow(1.35, this.getLevel('bossHunter'));
+      case 'prestigeBoost':
+        return 1 + this.getLevel('prestigeBoost') * 0.1 * (game?.player.stars || 0);
       default: return 1;
     }
-  }
-
-  triggerBattleCry() {
-    if (this.getLevel('battleCry') > 0) {
-      this.battleCryActive = true;
-      this.battleCryTimer = 10000;
-    }
-  }
-
-  updateBattleCry(dt) {
-    if (this.battleCryActive) {
-      this.battleCryTimer -= dt;
-      if (this.battleCryTimer <= 0) {
-        this.battleCryActive = false;
-        this.battleCryTimer = 0;
-      }
-    }
-  }
-
-  getBattleCryMult() {
-    if (!this.battleCryActive) return 1;
-    return this.getBonus('battleCry');
   }
 
   getVisibleUpgrades(prestigeCount) {
@@ -339,13 +252,9 @@ class UpgradeSystem {
     });
   }
 
-  serialize() {
-    return { levels: { ...this.levels } };
-  }
+  serialize() { return { levels: { ...this.levels } }; }
 
   deserialize(data) {
-    if (data && data.levels) {
-      Object.assign(this.levels, data.levels);
-    }
+    if (data?.levels) Object.assign(this.levels, data.levels);
   }
 }
