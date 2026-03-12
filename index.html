@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADDICTINGO</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header Bar -->
+    <header id="header">
+      <div class="header-left">
+        <div class="stat-pill">
+          <span class="stat-icon">⚔</span>
+          <span>Zone <span id="zone-display">1</span></span>
+        </div>
+        <div class="stat-pill boss-indicator hidden" id="boss-indicator">
+          <span class="pulse-red">⚠ BOSS</span>
+        </div>
+      </div>
+      <div class="header-center">
+        <h1 class="game-title">ADDICTINGO</h1>
+      </div>
+      <div class="header-right">
+        <div class="stat-pill gold-pill">
+          <span class="stat-icon">💰</span>
+          <span id="gold-display">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-icon">✦</span>
+          <span id="stars-display">0</span> Stars
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main id="main">
+      <!-- Left Panel: Player Stats & Upgrades -->
+      <aside id="left-panel">
+        <!-- Player Card -->
+        <div class="panel-section" id="player-card">
+          <div class="player-header">
+            <div class="player-avatar" id="player-avatar">⚡</div>
+            <div class="player-info">
+              <div class="player-level">Level <span id="player-level">1</span></div>
+              <div class="xp-bar-container">
+                <div class="xp-bar" id="xp-bar"></div>
+                <span class="xp-text" id="xp-text">0 / 100 XP</span>
+              </div>
+            </div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">ATK</span>
+              <span class="stat-value" id="stat-attack">1</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">CRIT</span>
+              <span class="stat-value" id="stat-crit">5%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">CRIT×</span>
+              <span class="stat-value" id="stat-critx">2.0×</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">DPS</span>
+              <span class="stat-value" id="stat-dps">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">GOLD×</span>
+              <span class="stat-value" id="stat-goldmult">1.0×</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">CLICKS</span>
+              <span class="stat-value" id="stat-clicks">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upgrades Panel -->
+        <div class="panel-section" id="upgrades-panel">
+          <h3 class="panel-title">UPGRADES</h3>
+          <div id="upgrades-list"></div>
+        </div>
+
+        <!-- Prestige Button -->
+        <div class="panel-section" id="prestige-section">
+          <button id="prestige-btn" class="prestige-btn hidden" onclick="game.prestige()">
+            ✦ PRESTIGE (Zone 50+)<br>
+            <small id="prestige-reward-text">Gain 1 Star</small>
+          </button>
+          <div id="prestige-info" class="prestige-info">
+            <small>Prestige unlocks at Zone 50</small>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Game Canvas Area -->
+      <section id="game-area">
+        <!-- Zone Progress Bar -->
+        <div id="zone-progress-container">
+          <div class="zone-label">ZONE <span id="zone-num">1</span></div>
+          <div class="zone-bar-track">
+            <div class="zone-bar-fill" id="zone-bar"></div>
+            <span class="zone-bar-text" id="zone-bar-text">0 / 10</span>
+          </div>
+          <div class="zone-label">ZONE <span id="zone-next">2</span></div>
+        </div>
+
+        <!-- Canvas -->
+        <canvas id="game-canvas" width="480" height="380"></canvas>
+
+        <!-- Enemy Info -->
+        <div id="enemy-info">
+          <div class="enemy-name" id="enemy-name">Slime</div>
+          <div class="hp-bar-container">
+            <div class="hp-bar" id="hp-bar"></div>
+            <span class="hp-text" id="hp-text">10 / 10</span>
+          </div>
+        </div>
+
+        <!-- Click DPS hint -->
+        <div class="click-hint" id="click-hint">CLICK TO ATTACK!</div>
+      </section>
+
+      <!-- Right Panel: Achievements + Log -->
+      <aside id="right-panel">
+        <div class="panel-section">
+          <h3 class="panel-title">ACHIEVEMENTS</h3>
+          <div id="achievements-list"></div>
+        </div>
+
+        <div class="panel-section">
+          <h3 class="panel-title">COMBAT LOG</h3>
+          <div id="combat-log"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Achievement Toast -->
+  <div id="achievement-toast" class="achievement-toast hidden">
+    <div class="toast-icon">🏆</div>
+    <div class="toast-content">
+      <div class="toast-title">Achievement Unlocked!</div>
+      <div class="toast-name" id="toast-name"></div>
+    </div>
+  </div>
+
+  <!-- Level Up Toast -->
+  <div id="levelup-toast" class="levelup-toast hidden">
+    <div class="levelup-text">LEVEL UP!</div>
+    <div class="levelup-num" id="levelup-num">2</div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/enemy.js"></script>
+  <script src="js/upgrades.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
