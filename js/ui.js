@@ -14,6 +14,18 @@ class UI {
     this._logEntries = [];
     this.maxLogEntries = 60;
     this._upgradesBuilt = false;
+
+    // Single delegated listener on the container — survives all DOM rebuilds
+    // because the container element itself is never replaced, only its children.
+    // Uses window.game so there's no stale closure over a captured game reference.
+    const container = this.els['upgrades-list'];
+    if (container) {
+      container.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-upgrade-id]');
+        if (!btn || btn.disabled) return;
+        window.game?.buyUpgrade(btn.dataset.upgradeId);
+      });
+    }
   }
 
   _cacheElements() {
@@ -105,11 +117,11 @@ class UI {
 
     const visible = game.upgrades.getVisibleUpgrades(game.player.prestiges);
 
-    // ── Build DOM structure exactly once ───────────────────────────────────
-    // innerHTML is NEVER replaced after build — only textContent of stable
-    // leaf nodes is mutated. This prevents the mousedown/mouseup split that
-    // swallows clicks when the DOM is rebuilt mid-click.
-    if (!this._upgradesBuilt || container.children.length === 0) {
+    // ── Build DOM structure — only when explicitly flagged ─────────────────
+    // Rebuild is triggered by setting _upgradesBuilt = false (e.g. prestige).
+    // The `|| container.children.length === 0` fallback was REMOVED — it was
+    // causing spurious rebuilds that detached live button elements mid-click.
+    if (!this._upgradesBuilt) {
       container.innerHTML = '';
       let currentCat = null;
 
@@ -128,11 +140,13 @@ class UI {
           }
         }
 
-        // Button skeleton — stable structure, never recreated
+        // Button skeleton — NO individual event listeners.
+        // All clicks are handled by the delegated listener in the constructor.
         const btn = document.createElement('button');
         btn.id = `upgrade-${def.id}`;
+        btn.dataset.upgradeId = def.id;  // used by delegated listener
+        btn.type = 'button';             // prevent any form-submit behaviour
         btn.className = 'upgrade-btn';
-        btn.addEventListener('click', () => game.buyUpgrade(def.id));
 
         const iconEl = document.createElement('span');
         iconEl.className = 'upgrade-icon';
@@ -186,7 +200,9 @@ class UI {
         + (maxed  ? ' maxed'      : '')
         + (locked ? ' locked'     : '')
         + (afford ? ' affordable' : '');
-      btn.disabled = maxed || locked;
+      // Only hard-disable maxed buttons. Locked and non-affordable buttons
+      // are still interactive — buyUpgrade handles them gracefully with feedback.
+      btn.disabled = maxed;
 
       const levelEl = btn.querySelector('.u-level');
       const descEl  = btn.querySelector('.u-desc');

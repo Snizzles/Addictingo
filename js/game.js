@@ -205,6 +205,16 @@ class Game {
   }
 
   buyUpgrade(id) {
+    // Check locked first — give visual feedback, don't just silently fail
+    if (this.upgrades.isLocked(id, this)) {
+      this._flashButton(id, 'locked-flash');
+      return;
+    }
+    const cost = this.upgrades.getCost(id);
+    if (this.gold < cost) {
+      this._flashButton(id, 'cant-afford');
+      return;
+    }
     const result = this.upgrades.purchase(id, this.player, this.gold, this);
     if (!result.success) return;
     this.gold -= result.cost;
@@ -212,6 +222,13 @@ class Game {
     this.attackerManager.sync(this.upgrades.levels);
     this._checkAchievements();
     this.ui.updateAll(this);
+  }
+
+  _flashButton(id, cls) {
+    const btn = document.getElementById(`upgrade-${id}`);
+    if (!btn) return;
+    btn.classList.add(cls);
+    setTimeout(() => btn.classList.remove(cls), 500);
   }
 
   prestige() {
@@ -235,10 +252,10 @@ class Game {
 
     this._checkAchievements();
     this.spawnEnemy();
+    // Tell the UI to rebuild upgrade buttons on next updateUpgrades call.
+    // Never clear innerHTML externally — that detaches the delegated listener.
+    this.ui._upgradesBuilt = false;
     this.ui.updateAll(this);
-    const upgradeList = document.getElementById('upgrades-list');
-    if (upgradeList) upgradeList.innerHTML = '';
-    this.ui.updateUpgrades(this);
   }
 
   calcPrestigeStars() {
