@@ -105,45 +105,82 @@ class UI {
 
     const visible = game.upgrades.getVisibleUpgrades(game.player.prestiges);
 
-    // Build structure once (or after prestige reset)
+    // ── Build DOM structure exactly once ───────────────────────────────────
+    // innerHTML is NEVER replaced after build — only textContent of stable
+    // leaf nodes is mutated. This prevents the mousedown/mouseup split that
+    // swallows clicks when the DOM is rebuilt mid-click.
     if (!this._upgradesBuilt || container.children.length === 0) {
       container.innerHTML = '';
       let currentCat = null;
 
       for (const def of visible) {
+        // Category header
         if (def.category !== currentCat) {
           currentCat = def.category;
           const catDef = UPGRADE_CATEGORIES.find(c => c.id === currentCat);
           if (catDef) {
-            const header = document.createElement('div');
-            header.className = 'upgrade-cat-header';
-            header.style.color = catDef.color;
-            header.style.borderColor = catDef.color + '44';
-            header.textContent = catDef.label;
-            container.appendChild(header);
+            const h = document.createElement('div');
+            h.className = 'upgrade-cat-header';
+            h.style.color = catDef.color;
+            h.style.borderColor = catDef.color + '44';
+            h.textContent = catDef.label;
+            container.appendChild(h);
           }
         }
 
+        // Button skeleton — stable structure, never recreated
         const btn = document.createElement('button');
         btn.id = `upgrade-${def.id}`;
         btn.className = 'upgrade-btn';
-        if (def.isAuto) btn.dataset.autoColor = def.color || '#06b6d4';
         btn.addEventListener('click', () => game.buyUpgrade(def.id));
+
+        const iconEl = document.createElement('span');
+        iconEl.className = 'upgrade-icon';
+        iconEl.textContent = def.icon;
+
+        const infoEl = document.createElement('span');
+        infoEl.className = 'upgrade-info';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'upgrade-name';
+        nameEl.textContent = def.name + ' ';
+        const levelEl = document.createElement('span');
+        levelEl.className = 'upgrade-level u-level';
+        nameEl.appendChild(levelEl);
+
+        const descEl = document.createElement('span');
+        descEl.className = 'upgrade-desc u-desc';
+
+        infoEl.appendChild(nameEl);
+        infoEl.appendChild(descEl);
+
+        if (def.isAuto) {
+          const dotsEl = document.createElement('div');
+          dotsEl.className = 'attacker-dots u-dots';
+          infoEl.appendChild(dotsEl);
+        }
+
+        const costEl = document.createElement('span');
+        costEl.className = 'upgrade-cost u-cost';
+
+        btn.appendChild(iconEl);
+        btn.appendChild(infoEl);
+        btn.appendChild(costEl);
         container.appendChild(btn);
       }
       this._upgradesBuilt = true;
     }
 
-    // Update each button's content and state
+    // ── Update only text/class on stable nodes — no DOM recreation ─────────
     for (const def of visible) {
       const btn = document.getElementById(`upgrade-${def.id}`);
       if (!btn) continue;
 
-      const level   = game.upgrades.getLevel(def.id);
-      const maxed   = level >= def.maxLevel;
-      const locked  = game.upgrades.isLocked(def.id, game);
-      const cost    = game.upgrades.getCost(def.id);
-      const afford  = !maxed && !locked && game.gold >= cost;
+      const level  = game.upgrades.getLevel(def.id);
+      const maxed  = level >= def.maxLevel;
+      const locked = game.upgrades.isLocked(def.id, game);
+      const cost   = game.upgrades.getCost(def.id);
+      const afford = !maxed && !locked && game.gold >= cost;
 
       btn.className = 'upgrade-btn'
         + (maxed  ? ' maxed'      : '')
@@ -151,36 +188,45 @@ class UI {
         + (afford ? ' affordable' : '');
       btn.disabled = maxed || locked;
 
-      let extraHTML = '';
-      if (def.isAuto && !locked) {
-        const count   = getAttackerCount(level);
-        const color   = def.color || '#06b6d4';
-        const dots    = [1, 2, 3, 4].map(n => `<span style="color:${n <= count ? color : '#334155'}">${n <= count ? '●' : '○'}</span>`).join(' ');
-        extraHTML = `<div class="attacker-dots">${dots}</div>`;
+      const levelEl = btn.querySelector('.u-level');
+      const descEl  = btn.querySelector('.u-desc');
+      const costEl  = btn.querySelector('.u-cost');
+      const dotsEl  = btn.querySelector('.u-dots');
+
+      if (levelEl) levelEl.textContent = `${level}/${def.maxLevel}`;
+
+      if (descEl) {
+        let newDesc;
+        if (locked && def.unlockReq) {
+          const reqDef = UPGRADE_DEFS.find(u => u.id === def.unlockReq.id);
+          newDesc = `🔒 Need ${reqDef?.name || def.unlockReq.id} Lv ${def.unlockReq.level}`;
+          descEl.style.color = '';
+        } else if (maxed) {
+          newDesc = 'MAXED OUT';
+          descEl.style.color = '#22c55e';
+        } else {
+          newDesc = def.getNextBonus(level);
+          descEl.style.color = '';
+        }
+        if (descEl.textContent !== newDesc) descEl.textContent = newDesc;
       }
 
-      let descHTML = '';
-      if (locked && def.unlockReq) {
-        const reqDef = UPGRADE_DEFS.find(u => u.id === def.unlockReq.id);
-        descHTML = `🔒 Need ${reqDef?.name || def.unlockReq.id} Lv ${def.unlockReq.level}`;
-      } else if (maxed) {
-        descHTML = '<span style="color:#22c55e">MAXED OUT</span>';
-      } else {
-        descHTML = def.getNextBonus(level);
+      if (costEl) {
+        const newCost = maxed ? '✓' : locked ? '—' : `💰${formatNum(cost)}`;
+        if (costEl.textContent !== newCost) costEl.textContent = newCost;
       }
 
-      btn.innerHTML = `
-        <span class="upgrade-icon">${def.icon}</span>
-        <span class="upgrade-info">
-          <span class="upgrade-name">
-            ${def.name}
-            <span class="upgrade-level">${level}/${def.maxLevel}</span>
-          </span>
-          <span class="upgrade-desc">${descHTML}</span>
-          ${extraHTML}
-        </span>
-        <span class="upgrade-cost">${maxed ? '✓' : locked ? '—' : `💰${formatNum(cost)}`}</span>
-      `;
+      if (dotsEl && def.isAuto) {
+        const count = getAttackerCount(level);
+        const prevCount = parseInt(dotsEl.dataset.count ?? '-1');
+        if (prevCount !== count) {
+          dotsEl.dataset.count = count;
+          const color = def.color || '#06b6d4';
+          dotsEl.innerHTML = [1, 2, 3, 4].map(n =>
+            `<span style="color:${n <= count ? color : '#334155'}">${n <= count ? '●' : '○'}</span>`
+          ).join(' ');
+        }
+      }
     }
   }
 

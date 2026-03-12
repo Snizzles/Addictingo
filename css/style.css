@@ -308,7 +308,7 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 10px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-sm);
@@ -322,10 +322,14 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
 }
 
 .upgrade-btn:hover:not(:disabled) {
-  background: rgba(124,58,237,0.15);
+  background: rgba(124,58,237,0.18);
   border-color: var(--accent);
-  transform: translateX(2px);
   box-shadow: var(--glow);
+}
+
+.upgrade-btn:active:not(:disabled) {
+  background: rgba(124,58,237,0.3);
+  transform: scale(0.98);
 }
 
 .upgrade-btn:disabled {
@@ -355,6 +359,8 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+
+.upgrade-btn > * { pointer-events: none; }
 
 .upgrade-icon {
   font-size: 1.2rem;
