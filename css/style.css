@@ -134,7 +134,7 @@ body::before {
 /* === MAIN LAYOUT === */
 #main {
   display: grid;
-  grid-template-columns: 280px 1fr 260px;
+  grid-template-columns: 260px 1fr 240px;
   flex: 1;
   overflow: hidden;
   gap: 0;
@@ -503,7 +503,9 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
   color: rgba(255,255,255,0.8);
 }
 
-/* Canvas */
+/* Canvas — fills the available center column width, aspect-ratio preserves
+   proportions on narrower viewports. Internal drawing resolution is set in
+   the HTML width/height attributes; CSS only controls display size. */
 #game-canvas {
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -511,8 +513,9 @@ aside::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; 
   box-shadow: var(--glow), inset 0 0 60px rgba(7,7,26,0.5);
   background: transparent;
   display: block;
-  max-width: 100%;
-  max-height: calc(100% - 180px);
+  width: 100%;
+  aspect-ratio: 800 / 580;
+  max-height: calc(100vh - 200px);
 }
 
 #game-canvas:active { transform: scale(0.998); }
